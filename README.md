@@ -12,13 +12,17 @@ This work was conducted at and therefore funded by the Max Planck Institute of A
 - Try nvblass on version with bigger matrices.
 - Try to figure out why `1.R` sometimes needs to be 
 
+## Testing toolbox
+- profvis []
+
 ## 20240717 - 20240726
 
 Note: Langevin function and langevin function are two different functions. Langevin calls langevin.
 
 During this time, I focused on trying to optimize the langevin function. One of the first things I did was refactor to make a version of langevin that takes all parameters explicitly instead of via ctmm object.  [R/bench_lib](R/bench_lib.R) contains the original `langevin` code from the package with this reparameterization. This file is sourced in multiple other scripts as a baseline. [R/originalLangevin.R](R/originalLangevin.R) is the equivalent for the `Langevin` function
 
-Functional regression testing strategies (making sure the code still does the same thing it did before)
+### Functional regression testing strategies (making sure the code still does the same thing it did before)
+
 - **hacky: langevin inputs csv/data table** To get realistic input values, I manually edited the ctmm source code to store the inputs and outputs in a global variable (with `<<-`), and ran a long script. I also had a global iterator variable and made the code stop after a few iterations. Then, I saved the results in a data table. I also added some manually in order to make sure I my tests were covering every line in the langevin function.
     - Changes to the ctmm package to generate this object aren't saved.
     - [Code to reshape inputs into csv](R/lange_extract_inputs.R)
@@ -32,7 +36,19 @@ Functional regression testing strategies (making sure the code still does the sa
     - Precursor: Method in between the above bullet and this one. Here I did modify the code. [Precursor generating data](R/hacky_lange_testgen.R), [Precursor using data](R/hacky_Lange_testscript.R)
 - **failed attempt: dump/dput** I tried to use `dump` and/or `dput` to save CTMM objects as R code that could be rehydrated by running it. However, this didn't work. For some reason, the rehydrated objects lacked names so I would have to save objects either as `.rds` or in a custom plaintext format (the csv mentioned above).
 
-Refactors attempted on langevin
+## Performance testing
+
+Used microbenchechmark throughout to compare different versions of the same function.
+
+As a final check, I used `atime` to compare multiple versions doing a full model fit to verify that "micro" improvements translated into macro.
+- [atime script calling ctmm.fit directly](R/atime_buff_full.R)
+- [atime script calling ctmm.select](R/atime_buff_select.R)
+
+
+I also started the process of creating similar checks with the wolf dataset ([here](R/generate_testdata_wolf.R)), but it seemed to be covering similar lines of code within the parts of the package that I was focusing on.
+
+### Refactors attempted on langevin
+
 - **One Big if....else...** The was less of an attempt to optimize, and more of an attempt to make the logic more clear/understand it better...and possibly see if these `if(...){...}else{...}` could in theory be vectorized into `ifelse` or similar.
     - **Code** [R/langevin_benchmark.R](R/langevin_benchmark.R) `big_switch` function.
     - **Results**  As expected, this made performance slightly worse because more checks were taking placing. Doing this refactor did help me understand the logic better.
@@ -44,9 +60,45 @@ Refactors attempted on langevin
     - **Code** [R/langevin_benchmark.R Line 436](R/langevin_benchmark.R#L436)
     - **Results** Testing the langevin function in isolation with different params, it (expectedly) performed similarly to previous two attempts, worse than orginal. Needed to evaluate in context of a full Langevin call.
 
+At this point, I wanted to see if profiling my refactors could give insight into other speedup ideas.
+- [Code to generate profile](R/langevin_profile.R)
+- [Resulting profile](profiles/profile_refactored.html)
 
+### Sinch Detour
 
-Peformance testing strategies 
+Based on the profile, sinch stood out as an place to optimize.
+- [Sinch benchmarks](R/bench_sinch.R)
+- Added this change to existing [exp2 PR](https://github.com/ctmm-initiative/ctmm/pull/58)
+
+### Optimizing accross multiple langevin runs
+
+[This script](R/vectorize_bench.R) has mini-Langevin functions and was used to run multiple versions of langevin function against each other and reshape the outputs so that they would match in structure even if calls did match perfectly. It sources the candidate functions.
+
+- **Simplifying Existing Loops** Reading through the code, it seemed like existing loops could be simplified. Modest, but clear performance improvement was achieved here. [PR here](https://github.com/ctmm-initiative/ctmm/pull/60)
+- **Factory Method** Tried to validate the idea of a "function picker" described above. Then I realized each of these functions could be vectorized. [langevin equivalent](R/vectorize_lib.R#L26-L247) (langevin_fn_factory), [Langevin equivalent](R/vectorize_bench.R#L26-L44) (vectorized)
+- **Check without factory** Realized it was likely the vectorization (dt as a vector instead of a scalar taken as an argument) aspect and not factory function aspect that was causing the speedup. Because the custom function is now getting called once instead of in a loop, evaluating tau, K, etc. became a one-time cost. I validated this by comparing against the big_switch from above.
+   - [langevin equivalent](R/vectorize_lib.R#L249-#L464) (no_factory), [Langevin equivalent](R/vectorize_bench.R#L7-L24) (vectorized_no_factory)
+- **Vectorizing (or rather matrixizing) original function** Based on this theory, refactoring to make a function that only depends on dt seemed unnecessary, so I went back to the original version and modified it to take dt vectors without changing the high level structure.
+   - [langevin equivalent](R/vectorize_lib.R#L465-L643) (vect_from_orig), [Langevin equivalent](vectorize_bench.R#L4) (v_rom_o)
+
+Results
+
+```
+Unit: milliseconds
+                               expr      min       lq     mean   median
+          pm_Langevin(orig_wrapped) 3.610253 3.681173 3.792307 3.736191
+            pm_Langevin(vectorized) 1.647363 1.763114 1.827580 1.806475
+ pm_Langevin(vectorized_no_factory) 1.655294 1.750106 1.954150 1.802874
+              pm_Langevin(v_from_o) 1.014779 1.100715 1.149552 1.129899
+       uq      max neval cld
+ 3.829225 4.648289   100 a  
+ 1.873582 2.145873   100  b 
+ 1.907630 8.049493   100  b 
+ 1.189826 1.616803   100   c
+ ```
+
+ The vectorized version of the original is the clear winner. Original takes ~3x as long on this dataset.
+
 
 ## 20240701
 
@@ -55,6 +107,7 @@ Peformance testing strategies
 Tried a quick fix for calling the langevin function multiple times with the same argument. More details in the [PR here](https://github.com/ctmm-initiative/ctmm/pull/59).
 
 - [benchmark memoise version](R/memoise_bench.R)
+- [profile data](profiles/profile_memoise.html)
 
 ## 29062024
 
