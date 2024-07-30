@@ -9,12 +9,17 @@ This work was conducted at and therefore funded by the Max Planck Institute of A
 ## TODO
 - Look for vectorization opportunities in Kalman
 - Go back to try to map ctmm kalman filter function to other kalman filter libraries (read the paper carefully). Validate the idea that this would cause issues with Inf and NaNs.
-- Try nvblass on version with bigger matrices.
-- Try to figure out why `1.R` sometimes needs to be 
+- Try nvblas on version with bigger matrices.
+- Try to figure out why `1.R` sometimes needs to be sourced separately
 
 ## 20240709 - Present
 
+I put together in a branch vectorizing langevin with the sich fixes and profiled it again against the buffalo modeling. [Results here](profiles/profile_postoptim.html). From this determined that pd solve calls within langevin would be a good next target.
 
+WIP Scripts:
+- [bench_arr.R](R/bench_arr.R) script comparing as.matrix, matrix, and array functions. 
+- [pdsolve_testdata.R](R/pdsolve_testdata.R) generate test data
+- [pdsolve_multi.R](R/pdsolve_multi.R) Benchmarking multiple back to back calls in pd solve
 
 ## 20240717 - 20240726
 
