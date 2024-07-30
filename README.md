@@ -12,8 +12,9 @@ This work was conducted at and therefore funded by the Max Planck Institute of A
 - Try nvblass on version with bigger matrices.
 - Try to figure out why `1.R` sometimes needs to be 
 
-## Testing toolbox
-- profvis []
+## 20240709 - Present
+
+
 
 ## 20240717 - 20240726
 
@@ -78,6 +79,7 @@ Based on the profile, sinch stood out as an place to optimize.
 - **Factory Method** Tried to validate the idea of a "function picker" described above. Then I realized each of these functions could be vectorized. [langevin equivalent](R/vectorize_lib.R#L26-L247) (langevin_fn_factory), [Langevin equivalent](R/vectorize_bench.R#L26-L44) (vectorized)
 - **Check without factory** Realized it was likely the vectorization (dt as a vector instead of a scalar taken as an argument) aspect and not factory function aspect that was causing the speedup. Because the custom function is now getting called once instead of in a loop, evaluating tau, K, etc. became a one-time cost. I validated this by comparing against the big_switch from above.
    - [langevin equivalent](R/vectorize_lib.R#L249-#L464) (no_factory), [Langevin equivalent](R/vectorize_bench.R#L7-L24) (vectorized_no_factory)
+   - [profiler results](profiles/profile_vectorized.html)
 - **Vectorizing (or rather matrixizing) original function** Based on this theory, refactoring to make a function that only depends on dt seemed unnecessary, so I went back to the original version and modified it to take dt vectors without changing the high level structure.
    - [langevin equivalent](R/vectorize_lib.R#L465-L643) (vect_from_orig), [Langevin equivalent](vectorize_bench.R#L4) (v_rom_o)
 
@@ -112,6 +114,8 @@ Unit: milliseconds
  - "vectorized" is the vectorized/matrixed version of the original mentioned above
 
  My suspicion (to be validated) is that this is because with the "brock speedup" above, there simply aren't very many elements in the for loop to start with so not much time that can be gained by removing it.
+ 
+ I did do a quick and dirty atime run on the Langevin function alone. [Code Here](R/atime_langevin.R) It was indeed directionally similar to above but with bigger differences between conditions. [Results Here](img/atime_vectorized03.png)
 
 
 ## 20240701
