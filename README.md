@@ -21,6 +21,9 @@ WIP Scripts:
 - [pdsolve_testdata.R](R/pdsolve_testdata.R) generate test data
 - [pdsolve_multi.R](R/pdsolve_multi.R) Benchmarking multiple back to back calls in pd solve
 
+
+- [stub of Langevin bench script](R/vectorizedLangevin.R)
+
 ## 20240717 - 20240726
 
 Note: Langevin function and langevin function are two different functions. Langevin calls langevin.
@@ -33,9 +36,10 @@ During this time, I focused on trying to optimize the langevin function. One of 
     - Changes to the ctmm package to generate this object aren't saved.
     - [Code to reshape inputs into csv](R/lange_extract_inputs.R)
     - [Code to shape back into arguments and run](R/langevin_benchmark.R#L697-L707)
-    - [Code to check coverage](R/lange_fuctional_test.R)
+    - [Code to check coverage](R/lange_fuctional_test.R) (I was not able to hit the dynamics!=stationary code.)
 - **nicish, but scary: Langevin monkey patching** To make this process a bit quicker and systematic to apply to arbitrary functions, I wrote a script that replaces any function you specify within its packages namespace with a version that does the same thing, but saves the inputs and outputs to an environment that can be accessed later. Result is a list with two elements each of which is a sublist. One sublist has the inputs and the other has the return values. I would save these two sublists rds, rda or RData format, and then rehydrate to run tests. If the fuction is called few enough times, you can save the input and results of every call in a longer routine this way, thus allowing you to validate that you are not impacting the functionality of your focal function within this routine whatsoever. 
     - Code to apply the monkey patch is not yet released, plan to release soon in a separate repo.
+    - [Code to generate testdata](R/generate_testdata.R) Imports the above mentioned monkey patch code. 
     - [Filter](R/testgen_Langevin.R) I used this code to remove some parts of CTMM object that are minimal changes on the input data to save space.
     - [Using Generated Testcases](R/bench_Langevin.R#L42-L64)
     - This is how I generated the `.rda` file for [this PR](https://github.com/ctmm-initiative/ctmm/pull/60)
@@ -76,6 +80,8 @@ Based on the profile, sinch stood out as an place to optimize.
 - [Sinch benchmarks](R/bench_sinch.R)
 - Added this change to existing [exp2 PR](https://github.com/ctmm-initiative/ctmm/pull/58)
 
+![img](img/sincbench.png)
+
 ### Optimizing accross multiple langevin runs
 
 [This script](R/vectorize_bench.R) has mini-Langevin functions and was used to run multiple versions of langevin function against each other and reshape the outputs so that they would match in structure even if calls did match perfectly. It sources the candidate functions.
@@ -108,7 +114,7 @@ Unit: milliseconds
  
  However.....
 
- Running atime, it doesn't look like it made much of a dent in the overall runtime.
+ Running atime, it doesn't look like it made much of a dent in the overall runtime. (These are two separate runs.)
  
  ![img](img/atime_vectorized01.png) ![img](img/atime_vectorized02.png)
  
@@ -117,10 +123,13 @@ Unit: milliseconds
  - "chris speedup" is [this commit](https://github.com/ctmm-initiative/ctmm/commit/37a1aa480ab326f524e4314731cbfb2107182180)
  - "brock speedup" is with the simplified for loop in [this PR](https://github.com/ctmm-initiative/ctmm/pull/60)
  - "vectorized" is the vectorized/matrixed version of the original mentioned above
+ 
+ I checked this by running linear models on these. [Code Here](R/atime_linear_model.R) . In the model with all four conditions, there was no difference between "brock speedup" and "vectorize". For the data with only two conditions, there was a difference of 3 seconds (p~=.001). Probably not enough to justify a code change.
 
  My suspicion (to be validated) is that this is because with the "brock speedup" above, there simply aren't very many elements in the for loop to start with so not much time that can be gained by removing it.
  
  I did do a quick and dirty atime run on the Langevin function alone. [Code Here](R/atime_langevin.R) It was indeed directionally similar to above but with bigger differences between conditions. [Results Here](img/atime_vectorized03.png)
+ 
 
 
 ## 20240701
@@ -161,3 +170,6 @@ Targetted the dexp1 and dexp2 functions for improvements.
 Related, but less useful scripts:
 - [Early attempts to use rcpp](R/cpp_dexp.R)
 - [Tracking down a bug in my initial PR](R/dexp_find_my_bug.R)
+
+Results:
+![img](img/expbench.png)
