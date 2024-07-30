@@ -98,6 +98,20 @@ Unit: milliseconds
  ```
 
  The vectorized version of the original is the clear winner. Original takes ~3x as long on this dataset.
+ 
+ However.....
+
+ Running atime, it doesn't look like it made much of a dent in the overall runtime.
+ 
+ ![img](img/atime_vectorized01.png) ![img](img/atime_vectorized02.png)
+ 
+ Here
+ - "pre-speedup" is [this commit](https://github.com/ctmm-initiative/ctmm/commit/66d1f5180323ae5502417c908e4e686ba65d2334)
+ - "chris speedup" is [this commit](https://github.com/ctmm-initiative/ctmm/commit/37a1aa480ab326f524e4314731cbfb2107182180)
+ - "brock speedup" is with the simplified for loop in [this PR](https://github.com/ctmm-initiative/ctmm/pull/60)
+ - "vectorized" is the vectorized/matrixed version of the original mentioned above
+
+ My suspicion (to be validated) is that this is because with the "brock speedup" above, there simply aren't very many elements in the for loop to start with so not much time that can be gained by removing it.
 
 
 ## 20240701
