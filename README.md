@@ -1,4 +1,4 @@
-# CTMM Performance Improvement Projecta (2024)
+# CTMM Performance Improvement Project (2024)
 
 These are some scripts I used in an attempt to profile, and improve runtime of Chris Flemming's [ctmm package](https://github.com/ctmm-initiative/ctmm). These scripts are not intended for re-use, but might be a helpful reference for similar projects. (Improving performance of an existing R statistical package.)
 
