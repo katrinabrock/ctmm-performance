@@ -1,0 +1,4 @@
+linters: linters_with_defaults(
+         quotes_linter = quotes_linter(delimiter = "'")
+    ) # see vignette("lintr")
+encoding: "UTF-8"
